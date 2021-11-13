@@ -1060,7 +1060,8 @@ func (f cacheGetFunc) Delete(ctx context.Context, key string) error {
 
 func TestManagerGetCertificateBogusSNI(t *testing.T) {
 	m := Manager{
-		Prompt: AcceptTOS,
+		Prompt:     AcceptTOS,
+		HostPolicy: HostWhitelist("bar"),
 		Cache: cacheGetFunc(func(ctx context.Context, key string) ([]byte, error) {
 			return nil, fmt.Errorf("cache.Get of %s", key)
 		}),
@@ -1075,6 +1076,7 @@ func TestManagerGetCertificateBogusSNI(t *testing.T) {
 		{`a/b.com`, "acme/autocert: server name contains invalid character"},
 		{"", "acme/autocert: missing server name"},
 		{"foo", "acme/autocert: server name component count invalid"},
+		{"bar", "cache.Get of bar"},
 		{".foo", "acme/autocert: server name component count invalid"},
 		{"foo.", "acme/autocert: server name component count invalid"},
 		{"fo.o", "cache.Get of fo.o"},

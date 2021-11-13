@@ -249,12 +249,14 @@ func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, 
 		return nil, errors.New("acme/autocert: Manager.Prompt not set")
 	}
 
+	// In the worst-case scenario, the timeout needs to account for caching, host policy,
+	// domain ownership verification and certificate issuance.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
 	name := hello.ServerName
 	if name == "" {
 		return nil, errors.New("acme/autocert: missing server name")
-	}
-	if !strings.Contains(strings.Trim(name, "."), ".") {
-		return nil, errors.New("acme/autocert: server name component count invalid")
 	}
 
 	// Note that this conversion is necessary because some server names in the handshakes
@@ -270,10 +272,13 @@ func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, 
 		return nil, errors.New("acme/autocert: server name contains invalid character")
 	}
 
-	// In the worst-case scenario, the timeout needs to account for caching, host policy,
-	// domain ownership verification and certificate issuance.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+	// Require a TLD in the server name unless the name is explicitly allowed by a custom
+	// host policy.
+	if !strings.Contains(strings.Trim(name, "."), ".") {
+		if m.HostPolicy == nil || m.HostPolicy(ctx, name) != nil {
+			return nil, errors.New("acme/autocert: server name component count invalid")
+		}
+	}
 
 	// Check whether this is a token cert requested for TLS-ALPN challenge.
 	if wantsTokenCert(hello) {
