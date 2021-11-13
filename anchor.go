@@ -8,7 +8,8 @@ import (
 	"net/url"
 
 	"golang.org/x/crypto/acme"
-	"golang.org/x/crypto/acme/autocert"
+
+	"github.com/anchordotdev/anchor-go/autocert"
 )
 
 type Config struct {
