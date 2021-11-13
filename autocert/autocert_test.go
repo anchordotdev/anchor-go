@@ -1182,13 +1182,17 @@ func TestEndToEnd(t *testing.T) {
 	const domain = "example.org"
 
 	// ACME CA server
-	ca := acmetest.NewCAServer([]string{"tls-alpn-01"}, []string{domain})
+	ca := acmetest.NewCAServer([]string{"tls-alpn-01"}, []string{domain}, true)
 	defer ca.Close()
 
 	// User dummy server.
 	m := &Manager{
 		Prompt: AcceptTOS,
 		Client: &acme.Client{DirectoryURL: ca.URL},
+		ExternalAccountBinding: &acme.ExternalAccountBinding{
+			KID: "test-key",
+			Key: make([]byte, 32),
+		},
 	}
 	us := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))

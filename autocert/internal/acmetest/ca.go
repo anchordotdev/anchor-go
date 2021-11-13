@@ -46,6 +46,7 @@ type CAServer struct {
 	server           *httptest.Server
 	challengeTypes   []string // supported challenge types
 	domainsWhitelist []string // only these domains are valid for issuing, unless empty
+	eabRequired      bool     // EAB JWS required for account registration
 
 	mu             sync.Mutex
 	certCount      int                       // number of issued certs
@@ -63,7 +64,7 @@ type CAServer struct {
 // sent to a client in a response for a domain authorization.
 // If domainsWhitelist is non-empty, the certs will be issued only for the specified
 // list of domains. Otherwise, any domain name is allowed.
-func NewCAServer(challengeTypes []string, domainsWhitelist []string) *CAServer {
+func NewCAServer(challengeTypes []string, domainsWhitelist []string, eabRequired bool) *CAServer {
 	var whitelist []string
 	for _, name := range domainsWhitelist {
 		whitelist = append(whitelist, name)
@@ -74,6 +75,7 @@ func NewCAServer(challengeTypes []string, domainsWhitelist []string) *CAServer {
 		domainsWhitelist: whitelist,
 		domainAddr:       make(map[string]string),
 		authorizations:   make(map[string]*authorization),
+		eabRequired:      eabRequired,
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -150,6 +152,12 @@ type discovery struct {
 	NewReg   string `json:"newAccount"`
 	NewOrder string `json:"newOrder"`
 	NewAuthz string `json:"newAuthz"`
+
+	Meta discoveryMeta `json:"meta"`
+}
+
+type discoveryMeta struct {
+	ExternalAccountRequired bool `json:"externalAccountRequired"`
 }
 
 type challenge struct {
@@ -190,6 +198,9 @@ func (ca *CAServer) handle(w http.ResponseWriter, r *http.Request) {
 			NewReg:   ca.serverURL("/new-reg"),
 			NewOrder: ca.serverURL("/new-order"),
 			NewAuthz: ca.serverURL("/new-authz"),
+			Meta: discoveryMeta{
+				ExternalAccountRequired: ca.eabRequired,
+			},
 		}
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			panic(fmt.Sprintf("discovery response: %v", err))
@@ -202,6 +213,22 @@ func (ca *CAServer) handle(w http.ResponseWriter, r *http.Request) {
 
 	// Client key registration request.
 	case r.URL.Path == "/new-reg":
+		var req struct {
+			Contact                []string
+			TermsOfServiceAgreed   bool
+			ExternalAccountBinding json.RawMessage
+		}
+
+		if err := decodePayload(&req, r.Body); err != nil {
+			ca.httpErrorf(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		if ca.eabRequired && len(req.ExternalAccountBinding) == 0 {
+			ca.httpErrorf(w, http.StatusBadRequest, "registration failed: no JWS for EAB")
+			return
+		}
+
 		// TODO: Check the user account key against a ca.accountKeys?
 		w.Header().Set("Location", ca.serverURL("/accounts/1"))
 		w.WriteHeader(http.StatusCreated)
