@@ -2,6 +2,7 @@ package anchor
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"log"
 	"net"
@@ -14,11 +15,16 @@ import (
 
 type Config struct {
 	URL *url.URL
-	EAB *acme.ExternalAccountBinding
+	EAB *EAB
 
 	ServerNames []string
 
 	mgr *autocert.Manager
+}
+
+type EAB struct {
+	KID string
+	Key string
 }
 
 func Listen(network, laddr string, config *Config) (net.Listener, error) {
@@ -65,12 +71,23 @@ func (c *Config) setup() error {
 		return errors.New("anchor: missing required URL field for Config")
 	}
 
+	var eabKey []byte
+	if c.EAB != nil && len(c.EAB.Key) > 0 {
+		var err error
+		if eabKey, err = base64.RawURLEncoding.DecodeString(c.EAB.Key); err != nil {
+			return err
+		}
+	}
+
 	c.mgr = &autocert.Manager{
-		Prompt: func(string) bool { return true },
+		Prompt:     func(string) bool { return true },
 		Client: &acme.Client{
 			DirectoryURL: c.URL.String(),
 		},
-		ExternalAccountBinding: c.EAB,
+		ExternalAccountBinding: &acme.ExternalAccountBinding{
+			KID: c.EAB.KID,
+			Key: eabKey,
+		},
 	}
 
 	return nil
