@@ -9,8 +9,7 @@ import (
 	"net/url"
 
 	"golang.org/x/crypto/acme"
-
-	"github.com/anchordotdev/anchor-go/autocert"
+	"golang.org/x/crypto/acme/autocert"
 )
 
 type Config struct {
@@ -80,7 +79,7 @@ func (c *Config) setup() error {
 	}
 
 	c.mgr = &autocert.Manager{
-		Prompt:     func(string) bool { return true },
+		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(c.ServerNames...),
 		Client: &acme.Client{
 			DirectoryURL: c.URL.String(),
