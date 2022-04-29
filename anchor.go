@@ -34,7 +34,7 @@ func Listen(network, laddr string, config *Config) (net.Listener, error) {
 	}
 
 	if len(config.ServerNames) != 1 {
-		panic("TODO")
+		return nil, errors.New("anchor: missing required ServerNames field for Config")
 	}
 
 	helloECDSA := &tls.ClientHelloInfo{
