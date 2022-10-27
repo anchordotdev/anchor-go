@@ -58,8 +58,9 @@ func Listen(network, laddr string, config *Config) (net.Listener, error) {
 	}
 
 	cfgTLS := &tls.Config{
-		Certificates: []tls.Certificate{*crtECDSA, *crtRSA},
-		ServerName:   config.ServerNames[0],
+		Certificates:   []tls.Certificate{*crtECDSA, *crtRSA},
+		GetCertificate: config.mgr.GetCertificate,
+		ServerName:     config.ServerNames[0],
 	}
 
 	return tls.Listen(network, laddr, cfgTLS)
